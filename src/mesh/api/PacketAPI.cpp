@@ -72,14 +72,7 @@ bool PacketAPI::receivePacket(void)
             break;
         }
         case meshtastic_ToRadio_heartbeat_tag:
-            if (mr->heartbeat.nonce == 1) {
-                if (nodeInfoModule) {
-                    LOG_INFO("Broadcasting nodeinfo ping");
-                    nodeInfoModule->sendOurNodeInfo(NODENUM_BROADCAST, true, 0, true);
-                }
-            } else {
-                LOG_DEBUG("Got client heartbeat");
-            }
+            LOG_DEBUG("Got client heartbeat");
             break;
         default:
             LOG_ERROR("Error: unhandled meshtastic_ToRadio variant: %d", mr->which_payload_variant);
