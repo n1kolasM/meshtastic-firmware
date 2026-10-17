@@ -483,80 +483,63 @@ std::unique_ptr<RadioInterface> initLoRa()
     }
 #endif
 
-#if defined(USE_SX1262) && !defined(ARCH_PORTDUINO) && !defined(TCXO_OPTIONAL) && RADIOLIB_EXCLUDE_SX126X != 1
+#if (defined(USE_SX1262) || defined(USE_SX1268)) && !defined(ARCH_PORTDUINO) && RADIOLIB_EXCLUDE_SX126X != 1
+
+#if defined(USE_SX1262)
+#define SX126X_INTERFACE SX1262Interface
+#define SX126X_CHIP_NAME "SX1262"
+#define SX126X_RADIO_TYPE SX1262_RADIO
+#elif defined(USE_SX1268)
+#define SX126X_INTERFACE SX1268Interface
+#define SX126X_CHIP_NAME "SX1268"
+#define SX126X_RADIO_TYPE SX1268_RADIO
+#endif
+
     if ((!rIf) && (config.lora.region != meshtastic_Config_LoRaConfig_RegionCode_LORA_24)) {
+#if !defined(TCXO_OPTIONAL)
         auto sxIf =
-            std::unique_ptr<SX1262Interface>(new SX1262Interface(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
+            std::unique_ptr<SX126X_INTERFACE>(new SX126X_INTERFACE(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
+        // Configure TCXO voltage as specified in define 
 #ifdef SX126X_DIO3_TCXO_VOLTAGE
         sxIf->setTCXOVoltage(SX126X_DIO3_TCXO_VOLTAGE);
 #endif
         if (!sxIf->init()) {
-            LOG_WARN("No SX1262 radio");
-            rIf = nullptr;
+            LOG_WARN("No " SX126X_CHIP_NAME " radio");
         } else {
-            LOG_INFO("SX1262 init success");
+            LOG_INFO(SX126X_CHIP_NAME " init success");
             rIf = std::move(sxIf);
-            radioType = SX1262_RADIO;
+            radioType = SX126X_RADIO_TYPE;
         }
-    }
-#endif
-
-#if defined(USE_SX1262) && !defined(ARCH_PORTDUINO) && defined(TCXO_OPTIONAL)
-    if ((!rIf) && (config.lora.region != meshtastic_Config_LoRaConfig_RegionCode_LORA_24)) {
+#else
+#ifdef SX126X_DIO3_TCXO_VOLTAGE
         // try using the specified TCXO voltage
         auto sxIf =
-            std::unique_ptr<SX1262Interface>(new SX1262Interface(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
+            std::unique_ptr<SX126X_INTERFACE>(new SX126X_INTERFACE(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
         sxIf->setTCXOVoltage(SX126X_DIO3_TCXO_VOLTAGE);
         if (!sxIf->init()) {
-            LOG_WARN("No SX1262 radio with TCXO, Vref %fV", SX126X_DIO3_TCXO_VOLTAGE);
-            rIf = nullptr;
+            LOG_WARN("No " SX126X_CHIP_NAME " radio with TCXO, Vref %fV", SX126X_DIO3_TCXO_VOLTAGE);
         } else {
-            LOG_INFO("SX1262 init success, TCXO, Vref %fV", SX126X_DIO3_TCXO_VOLTAGE);
+            LOG_INFO(SX126X_CHIP_NAME " init success, TCXO, Vref %fV", SX126X_DIO3_TCXO_VOLTAGE);
             rIf = std::move(sxIf);
-            radioType = SX1262_RADIO;
+            radioType = SX126X_RADIO_TYPE;
         }
-    }
-
-    if ((!rIf) && (config.lora.region != meshtastic_Config_LoRaConfig_RegionCode_LORA_24)) {
-        // If specified TCXO voltage fails, attempt to use DIO3 as a reference instead
-        rIf = std::unique_ptr<SX1262Interface>(new SX1262Interface(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
-        if (!rIf->init()) {
-            LOG_WARN("No SX1262 radio with XTAL, Vref 0.0V");
-            rIf = nullptr;
-        } else {
-            LOG_INFO("SX1262 init success, XTAL, Vref 0.0V");
-            radioType = SX1262_RADIO;
-        }
-    }
 #endif
-
-#if defined(USE_SX1268)
-#if defined(SX126X_DIO3_TCXO_VOLTAGE) && defined(TCXO_OPTIONAL)
-    if ((!rIf) && (config.lora.region != meshtastic_Config_LoRaConfig_RegionCode_LORA_24)) {
-        // try using the specified TCXO voltage
-        auto sxIf =
-            std::unique_ptr<SX1268Interface>(new SX1268Interface(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
-        sxIf->setTCXOVoltage(SX126X_DIO3_TCXO_VOLTAGE);
-        if (!sxIf->init()) {
-            LOG_WARN("No SX1268 radio with TCXO, Vref %fV", SX126X_DIO3_TCXO_VOLTAGE);
-            rIf = nullptr;
-        } else {
-            LOG_INFO("SX1268 init success, TCXO, Vref %fV", SX126X_DIO3_TCXO_VOLTAGE);
-            rIf = std::move(sxIf);
-            radioType = SX1268_RADIO;
+        if (!rIf) {
+            // If specified TCXO voltage fails, attempt starting with XTAL reference
+            rIf = std::unique_ptr<SX126X_INTERFACE>(new SX126X_INTERFACE(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
+            if (!rIf->init()) {
+                LOG_WARN("No " SX126X_CHIP_NAME " radio with XTAL");
+                rIf = nullptr;
+            } else {
+                LOG_INFO(SX126X_CHIP_NAME " init success, XTAL");
+                radioType = SX126X_RADIO_TYPE;
+            }
         }
-    }
 #endif
-    if ((!rIf) && (config.lora.region != meshtastic_Config_LoRaConfig_RegionCode_LORA_24)) {
-        rIf = std::unique_ptr<SX1268Interface>(new SX1268Interface(loraHal, SX126X_CS, SX126X_DIO1, SX126X_RESET, SX126X_BUSY));
-        if (!rIf->init()) {
-            LOG_WARN("No SX1268 radio");
-            rIf = nullptr;
-        } else {
-            LOG_INFO("SX1268 init success");
-            radioType = SX1268_RADIO;
-        }
     }
+#undef SX126X_INTERFACE
+#undef SX126X_CHIP_NAME
+#undef SX126X_RADIO_TYPE
 #endif
 
 #if defined(USE_LLCC68)
